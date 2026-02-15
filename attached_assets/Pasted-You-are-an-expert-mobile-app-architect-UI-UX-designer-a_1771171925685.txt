@@ -1,0 +1,156 @@
+You are an expert mobile app architect, UI/UX designer, and Flutter engineer.
+Build a cross-platform Android application (Flutter) that converts hard-copy kho-kho scoresheets into digital format using OCR with handwritten text recognition.
+
+🎯 App Goal
+
+Convert photographed/scanned kho-kho scoresheets into:
+
+Structured digital records
+
+Stored database entries
+
+Exportable Excel (.xlsx) files
+
+🧩 Core Features
+
+User Authentication
+
+Simple login/signup
+
+Image Capture & Upload
+
+Camera + gallery support
+
+Auto image enhancement (deskew, denoise)
+
+OCR + Handwriting Recognition
+
+Extract team names, players, scores, date, venue
+
+Return confidence score per field
+
+Detect tables and structured score rows
+
+Manual Review & Edit Screen
+
+Editable OCR output
+
+Highlight low-confidence fields
+
+Auto-Fill Logic
+
+If data is blurred or missing:
+
+Suggest values using pattern rules or ML
+
+Clearly flag as auto-generated
+
+Never silently invent critical data
+
+Data Storage & Validation
+
+Store records in database
+
+Prevent duplicates using:
+
+Match ID fingerprinting
+
+Team + date + venue uniqueness
+
+Excel Export & Import
+
+Export DB → Excel (large data supported)
+
+Import Excel → DB with validation
+
+No duplicate or repeated records allowed
+
+Watermarking
+
+Apply visible watermark with app name on:
+
+Digital score sheet
+
+Exported Excel files
+
+🎨 UI / COLOR THEME (MANDATORY)
+
+Use a soft pastel fintech-style UI inspired by modern banking apps:
+
+Background:
+Soft mint-green to sage-green gradient
+Calm, fresh, premium feel
+
+Cards:
+White cards with subtle shadow
+Rounded corners (20–28dp)
+
+Primary Accent:
+Warm pastel yellow for main highlights
+
+Secondary Colors:
+
+Green → positive values
+
+Muted red → negative values
+
+Dark gray → primary text
+
+Light gray → secondary text
+
+Typography:
+Clean, modern, rounded sans-serif
+
+Buttons:
+Pill-shaped, minimal borders
+
+Icons:
+Thin-line, minimal, monochrome
+
+Style Keywords:
+Soft UI, neumorphism-inspired, low contrast, airy spacing
+
+Target mood: calm, trustworthy, modern, premium
+
+📱 Screens to Generate
+
+Login / Signup
+
+Home dashboard
+
+Capture / Upload scoresheet
+
+OCR result preview
+
+Edit & confirm data
+
+Saved matches list
+
+Export / Import Excel
+
+⚙️ Technical Constraints
+
+Frontend: Flutter
+
+Backend ready for Node.js
+
+Database ready for PostgreSQL
+
+Excel handling must support 100k+ rows
+
+All auto-generated data must be flagged
+
+📦 Output Requirements
+
+Generate UI screens
+
+Generate navigation flow
+
+Generate sample data models
+
+Provide clean Flutter structure
+
+Use scalable, production-ready patterns
+
+Do not use placeholders unless unavoidable.
+Prioritize correctness, clarity, and real-world usability.
