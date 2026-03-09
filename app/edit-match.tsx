@@ -58,12 +58,14 @@ function EditableField({ label, value, onChangeText, confidence, isAutoFilled, m
   );
 }
 
-function PlayerEditRow({ player, index, onUpdate, colors }: {
+function PlayerEditRow(props: {
   player: Player;
   index: number;
   onUpdate: (name: string, score: string) => void;
   colors: ThemeColors;
+  key?: React.Key;
 }) {
+  const { player, index, onUpdate, colors } = props;
   return (
     <View style={styles.playerEditRow}>
       <Text style={[styles.playerEditIndex, { color: colors.textTertiary }]}>{index + 1}</Text>
