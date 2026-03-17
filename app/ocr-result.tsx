@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,6 +6,8 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, Feather } from '@expo/vector-icons';
@@ -16,55 +18,116 @@ import { useAppSettings } from '@/context/AppSettingsContext';
 import { simulateOCR } from '@/lib/match-storage';
 import { ThemeColors } from '@/constants/colors';
 
-function ConfidenceBadge({ value, colors }: { value: number; colors: ThemeColors }) {
-  const pct = Math.round(value * 100);
-  const color =
-    pct >= 85 ? colors.confidenceHigh :
-    pct >= 60 ? colors.confidenceMedium :
-    colors.confidenceLow;
+interface EditableData {
+  teamAName: string;
+  teamBName: string;
+  date: string;
+  venue: string;
+  teamAPlayers: { name: string; score: string }[];
+  teamBPlayers: { name: string; score: string }[];
+}
 
+function EditableFieldCompact({
+  label,
+  value,
+  onChangeText,
+  colors,
+  width,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  colors: ThemeColors;
+  width?: number | string;
+}) {
   return (
-    <View style={[styles.confidenceBadge, { backgroundColor: color + '18' }]}>
-      <View style={[styles.confidenceDot, { backgroundColor: color }]} />
-      <Text style={[styles.confidenceText, { color }]}>{pct}%</Text>
+    <View style={[styles.editFieldCompact, { width }]}>
+      <Text style={[styles.editLabel, { color: colors.textSecondary }]}>{label}</Text>
+      <TextInput
+        style={[styles.editInput, { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text }]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholderTextColor={colors.textTertiary}
+      />
     </View>
   );
 }
 
-function FieldRow({ label, value, confidence, isAutoFilled, colors, t }: {
-  label: string;
-  value: string;
-  confidence: number;
-  isAutoFilled?: boolean;
+function TeamPlayersTable({
+  teamName,
+  players,
+  onTeamNameChange,
+  onPlayerChange,
+  colors,
+  t,
+}: {
+  teamName: string;
+  players: { name: string; score: string }[];
+  onTeamNameChange: (name: string) => void;
+  onPlayerChange: (index: number, field: 'name' | 'score', value: string) => void;
   colors: ThemeColors;
   t: any;
 }) {
-  return (
-    <View style={[styles.fieldRow, { borderBottomColor: colors.border }]}>
-      <View style={styles.fieldLeft}>
-        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{label}</Text>
-        <Text style={[styles.fieldValue, { color: colors.text }]}>{value}</Text>
-      </View>
-      <View style={styles.fieldRight}>
-        <ConfidenceBadge value={confidence} colors={colors} />
-        {isAutoFilled && (
-          <View style={[styles.autoFillBadge, { backgroundColor: colors.accent + '25' }]}>
-            <Ionicons name="flash" size={10} color={colors.accentDark} />
-            <Text style={[styles.autoFillText, { color: colors.accentDark }]}>Auto</Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-}
+  const totalScore = players.reduce((sum, p) => sum + (parseInt(p.score) || 0), 0);
 
-function PlayerRow({ player, index, colors }: { player: { name: string; score: number; confidence: number }; index: number; colors: ThemeColors }) {
   return (
-    <View style={[styles.playerRow, { borderBottomColor: colors.border + '60' }]}>
-      <Text style={[styles.playerIndex, { color: colors.textTertiary }]}>{index + 1}</Text>
-      <Text style={[styles.playerName, { color: colors.text }]} numberOfLines={1}>{player.name}</Text>
-      <Text style={[styles.playerScore, { color: colors.text }]}>{player.score}</Text>
-      <ConfidenceBadge value={player.confidence} colors={colors} />
+    <View style={[styles.teamSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[styles.teamTitleRow, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.teamLabel, { color: colors.textSecondary }]}>Team</Text>
+        <TextInput
+          style={[
+            styles.teamNameInput,
+            { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text },
+          ]}
+          value={teamName}
+          onChangeText={onTeamNameChange}
+          placeholderTextColor={colors.textTertiary}
+        />
+        <View style={[styles.totalScorePill, { backgroundColor: colors.primaryLight }]}>
+          <Text style={[styles.totalScoreText, { color: colors.primary }]}>
+            {totalScore}
+          </Text>
+        </View>
+      </View>
+
+      <View style={[styles.playerTableHeader, { backgroundColor: colors.primaryLight, borderBottomColor: colors.border }]}>
+        <Text style={[styles.headerCell, { color: colors.primary, width: 30 }]}>
+          #
+        </Text>
+        <Text style={[styles.headerCell, { color: colors.primary, flex: 1 }]}>
+          Player Name
+        </Text>
+        <Text style={[styles.headerCell, { color: colors.primary, width: 60, textAlign: 'center' }]}>
+          Pts
+        </Text>
+      </View>
+
+      {players.map((player, idx) => (
+        <View key={idx} style={[styles.playerRow, { borderBottomColor: colors.border + '40' }]}>
+          <Text style={[styles.playerNum, { color: colors.textTertiary, width: 30 }]}>
+            {idx + 1}
+          </Text>
+          <TextInput
+            style={[
+              styles.playerNameCell,
+              { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text, flex: 1 },
+            ]}
+            value={player.name}
+            onChangeText={(text) => onPlayerChange(idx, 'name', text)}
+            placeholderTextColor={colors.textTertiary}
+          />
+          <TextInput
+            style={[
+              styles.playerScoreCell,
+              { borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text, width: 60 },
+            ]}
+            value={player.score}
+            onChangeText={(text) => onPlayerChange(idx, 'score', text)}
+            keyboardType="numeric"
+            placeholderTextColor={colors.textTertiary}
+          />
+        </View>
+      ))}
     </View>
   );
 }
@@ -75,55 +138,77 @@ export default function OCRResultScreen() {
   const { imageUri } = useLocalSearchParams<{ imageUri: string }>();
   const { colors, t } = useAppSettings();
 
-  const ocrData = useMemo(() => {
-    const simulated = simulateOCR();
-    const teamNames = ['Mumbai Warriors', 'Delhi Panthers', 'Chennai Riders', 'Kolkata Kings', 'Pune Strikers', 'Jaipur Royals'];
-    const venues = ['Shivaji Stadium, Mumbai', 'Nehru Ground, Delhi', 'Chepauk Arena, Chennai', 'Sports Complex, Pune'];
-    const i = Math.floor(Math.random() * teamNames.length);
-    let j = i;
-    while (j === i) j = Math.floor(Math.random() * teamNames.length);
-
-    const teamAScore = simulated.teamAPlayers.reduce((s, p) => s + p.score, 0);
-    const teamBScore = simulated.teamBPlayers.reduce((s, p) => s + p.score, 0);
-
-    const today = new Date();
-    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-    const autoFilled: string[] = [];
-    const venueConf = 0.4 + Math.random() * 0.5;
-    if (venueConf < 0.6) autoFilled.push('venue');
-
+  const initialOcrData = useMemo(() => {
+    // Start with empty scoresheet
     return {
-      teamAName: teamNames[i],
-      teamANameConfidence: 0.7 + Math.random() * 0.3,
-      teamBName: teamNames[j],
-      teamBNameConfidence: 0.7 + Math.random() * 0.3,
-      teamAPlayers: simulated.teamAPlayers,
-      teamBPlayers: simulated.teamBPlayers,
-      teamAScore,
-      teamBScore,
-      date: dateStr,
-      dateConfidence: 0.8 + Math.random() * 0.2,
-      venue: venues[Math.floor(Math.random() * venues.length)],
-      venueConfidence: venueConf,
-      autoFilledFields: autoFilled,
+      teamAName: '',
+      teamBName: '',
+      date: '',
+      venue: '',
+      teamAPlayers: Array.from({ length: 9 }, () => ({ name: '', score: '' })),
+      teamBPlayers: Array.from({ length: 9 }, () => ({ name: '', score: '' })),
     };
   }, []);
 
-  const avgConfidence = useMemo(() => {
-    const allConfs = [
-      ocrData.teamANameConfidence,
-      ocrData.teamBNameConfidence,
-      ocrData.dateConfidence,
-      ocrData.venueConfidence,
-      ...ocrData.teamAPlayers.map(p => p.confidence),
-      ...ocrData.teamBPlayers.map(p => p.confidence),
-    ];
-    return allConfs.reduce((a, b) => a + b, 0) / allConfs.length;
-  }, [ocrData]);
+  const [data, setData] = useState<EditableData>(initialOcrData);
+
+  const handleTeamANameChange = (name: string) => {
+    setData(prev => ({ ...prev, teamAName: name }));
+  };
+
+  const handleTeamBNameChange = (name: string) => {
+    setData(prev => ({ ...prev, teamBName: name }));
+  };
+
+  const handleDateChange = (date: string) => {
+    setData(prev => ({ ...prev, date }));
+  };
+
+  const handleVenueChange = (venue: string) => {
+    setData(prev => ({ ...prev, venue }));
+  };
+
+  const handleTeamAPlayerChange = (index: number, field: 'name' | 'score', value: string) => {
+    setData(prev => {
+      const updated = [...prev.teamAPlayers];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, teamAPlayers: updated };
+    });
+  };
+
+  const handleTeamBPlayerChange = (index: number, field: 'name' | 'score', value: string) => {
+    setData(prev => {
+      const updated = [...prev.teamBPlayers];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, teamBPlayers: updated };
+    });
+  };
 
   const handleEdit = () => {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    const ocrData = {
+      teamAName: data.teamAName,
+      teamANameConfidence: 0.85,
+      teamBName: data.teamBName,
+      teamBNameConfidence: 0.85,
+      teamAPlayers: data.teamAPlayers.map(p => ({
+        name: p.name,
+        score: parseInt(p.score) || 0,
+        confidence: 0.8,
+      })),
+      teamBPlayers: data.teamBPlayers.map(p => ({
+        name: p.name,
+        score: parseInt(p.score) || 0,
+        confidence: 0.8,
+      })),
+      date: data.date,
+      dateConfidence: 0.95,
+      venue: data.venue,
+      venueConfidence: 0.80,
+      autoFilledFields: [] as string[],
+    };
+
     router.push({
       pathname: '/edit-match',
       params: {
@@ -146,112 +231,69 @@ export default function OCRResultScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 }]}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={0}
       >
-        <View style={[styles.overallCard, { backgroundColor: colors.card, shadowColor: colors.cardShadow }]}>
-          <View style={styles.overallHeader}>
-            <Feather name="check-circle" size={20} color={colors.primary} />
-            <Text style={[styles.overallTitle, { color: colors.text }]}>{t.extractionComplete}</Text>
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={[styles.headerCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Kho-Kho Scoresheet.xlsx</Text>
+            <View style={styles.headerGrid}>
+              <EditableFieldCompact
+                label={t.date}
+                value={data.date}
+                onChangeText={handleDateChange}
+                colors={colors}
+                width="48%"
+              />
+              <EditableFieldCompact
+                label={t.venue}
+                value={data.venue}
+                onChangeText={handleVenueChange}
+                colors={colors}
+                width="48%"
+              />
+            </View>
           </View>
-          <View style={styles.overallStats}>
-            <View style={styles.overallStat}>
-              <Text style={[styles.overallStatValue, { color: colors.text }]}>{Math.round(avgConfidence * 100)}%</Text>
-              <Text style={[styles.overallStatLabel, { color: colors.textSecondary }]}>{t.avgConfidence}</Text>
-            </View>
-            <View style={[styles.overallDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.overallStat}>
-              <Text style={[styles.overallStatValue, { color: colors.text }]}>{ocrData.teamAPlayers.length + ocrData.teamBPlayers.length}</Text>
-              <Text style={[styles.overallStatLabel, { color: colors.textSecondary }]}>{t.playersFound}</Text>
-            </View>
-            <View style={[styles.overallDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.overallStat}>
-              <Text style={[styles.overallStatValue, { color: colors.text }]}>{ocrData.autoFilledFields.length}</Text>
-              <Text style={[styles.overallStatLabel, { color: colors.textSecondary }]}>{t.autoFilled}</Text>
-            </View>
-          </View>
-        </View>
 
-        <View style={[styles.sectionCard, { backgroundColor: colors.card, shadowColor: colors.cardShadow }]}>
-          <Text style={[styles.sectionCardTitle, { color: colors.text }]}>{t.matchInfo}</Text>
-          <FieldRow label={t.date} value={ocrData.date} confidence={ocrData.dateConfidence} colors={colors} t={t} />
-          <FieldRow
-            label={t.venue}
-            value={ocrData.venue}
-            confidence={ocrData.venueConfidence}
-            isAutoFilled={ocrData.autoFilledFields.includes('venue')}
+          <TeamPlayersTable
+            teamName={data.teamAName}
+            players={data.teamAPlayers}
+            onTeamNameChange={handleTeamANameChange}
+            onPlayerChange={handleTeamAPlayerChange}
             colors={colors}
             t={t}
           />
-        </View>
 
-        <View style={[styles.sectionCard, { backgroundColor: colors.card, shadowColor: colors.cardShadow }]}>
-          <View style={styles.teamHeader}>
-            <Text style={[styles.sectionCardTitle, { color: colors.text }]}>{ocrData.teamAName}</Text>
-            <ConfidenceBadge value={ocrData.teamANameConfidence} colors={colors} />
-          </View>
-          <View style={[styles.totalScoreRow, { backgroundColor: colors.primaryLight }]}>
-            <Text style={[styles.totalScoreLabel, { color: colors.primary }]}>{t.totalScore}</Text>
-            <Text style={[styles.totalScoreValue, { color: colors.primary }]}>{ocrData.teamAScore}</Text>
-          </View>
-          <View style={[styles.playerHeader, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.playerHeaderText, { flex: 0, width: 24, color: colors.textTertiary }]}>#</Text>
-            <Text style={[styles.playerHeaderText, { flex: 1, color: colors.textTertiary }]}>{t.player}</Text>
-            <Text style={[styles.playerHeaderText, { color: colors.textTertiary }]}>{t.pts}</Text>
-            <Text style={[styles.playerHeaderText, { width: 60, textAlign: 'right', color: colors.textTertiary }]}>{t.conf}</Text>
-          </View>
-          {ocrData.teamAPlayers.map((player, idx) => (
-            <PlayerRow key={idx} player={player} index={idx} colors={colors} />
-          ))}
-        </View>
-
-        <View style={[styles.sectionCard, { backgroundColor: colors.card, shadowColor: colors.cardShadow }]}>
-          <View style={styles.teamHeader}>
-            <Text style={[styles.sectionCardTitle, { color: colors.text }]}>{ocrData.teamBName}</Text>
-            <ConfidenceBadge value={ocrData.teamBNameConfidence} colors={colors} />
-          </View>
-          <View style={[styles.totalScoreRow, { backgroundColor: colors.primaryLight }]}>
-            <Text style={[styles.totalScoreLabel, { color: colors.primary }]}>{t.totalScore}</Text>
-            <Text style={[styles.totalScoreValue, { color: colors.primary }]}>{ocrData.teamBScore}</Text>
-          </View>
-          <View style={[styles.playerHeader, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.playerHeaderText, { flex: 0, width: 24, color: colors.textTertiary }]}>#</Text>
-            <Text style={[styles.playerHeaderText, { flex: 1, color: colors.textTertiary }]}>{t.player}</Text>
-            <Text style={[styles.playerHeaderText, { color: colors.textTertiary }]}>{t.pts}</Text>
-            <Text style={[styles.playerHeaderText, { width: 60, textAlign: 'right', color: colors.textTertiary }]}>{t.conf}</Text>
-          </View>
-          {ocrData.teamBPlayers.map((player, idx) => (
-            <PlayerRow key={idx} player={player} index={idx} colors={colors} />
-          ))}
-        </View>
-
-        {ocrData.autoFilledFields.length > 0 && (
-          <View style={[styles.warningCard, { backgroundColor: colors.accent + '18' }]}>
-            <Ionicons name="warning-outline" size={18} color={colors.accentDark} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.warningTitle, { color: colors.text }]}>{t.autoFilledDetected}</Text>
-              <Text style={[styles.warningText, { color: colors.textSecondary }]}>
-                {t.autoFilledDetectedDesc.replace('{fields}', ocrData.autoFilledFields.join(', '))}
-              </Text>
-            </View>
-          </View>
-        )}
-      </ScrollView>
+          <TeamPlayersTable
+            teamName={data.teamBName}
+            players={data.teamBPlayers}
+            onTeamNameChange={handleTeamBNameChange}
+            onPlayerChange={handleTeamBPlayerChange}
+            colors={colors}
+            t={t}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 16), backgroundColor: colors.card, borderTopColor: colors.border }]}>
         <Pressable
-          style={({ pressed }) => [styles.editButton, pressed && { opacity: 0.9 }]}
+          style={({ pressed }) => [styles.confirmButton, pressed && { opacity: 0.9 }]}
           onPress={handleEdit}
         >
           <LinearGradient
-            colors={[colors.primary, colors.primaryDark]}
+            colors={['#4A90E2', '#357ABD']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={styles.editGradient}
+            style={styles.confirmGradient}
           >
-            <Feather name="edit-3" size={18} color={colors.white} />
-            <Text style={[styles.editButtonText, { color: colors.white }]}>{t.reviewAndEdit}</Text>
+            <Feather name="check" size={18} color={colors.white} />
+            <Text style={[styles.confirmButtonText, { color: colors.white }]}>{t.reviewAndEdit}</Text>
           </LinearGradient>
         </Pressable>
       </View>
@@ -481,5 +523,133 @@ const styles = StyleSheet.create({
   editButtonText: {
     fontSize: 16,
     fontFamily: 'Nunito_700Bold',
+  },
+  confirmButton: {
+    borderRadius: 28,
+    overflow: 'hidden',
+  },
+  confirmGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 28,
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontFamily: 'Nunito_700Bold',
+  },
+  teamSection: {
+    borderWidth: 2,
+    borderRadius: 8,
+    marginBottom: 16,
+    padding: 8,
+  },
+  teamTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 2,
+    marginBottom: 8,
+  },
+  teamLabel: {
+    fontSize: 14,
+    fontFamily: 'Nunito_600SemiBold',
+    marginRight: 8,
+  },
+  teamNameInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 14,
+    fontFamily: 'Nunito_500Medium',
+  },
+  totalScorePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  totalScoreText: {
+    fontSize: 16,
+    fontFamily: 'Nunito_700Bold',
+  },
+  playerTableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderWidth: 2,
+    marginBottom: 4,
+  },
+  headerCell: {
+    fontSize: 14,
+    fontFamily: 'Nunito_700Bold',
+    textAlign: 'center',
+  },
+  playerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+  },
+  playerNum: {
+    fontSize: 12,
+    fontFamily: 'Nunito_500Medium',
+    textAlign: 'center',
+  },
+  playerNameCell: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    fontSize: 14,
+    fontFamily: 'Nunito_500Medium',
+  },
+  playerScoreCell: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    fontSize: 14,
+    fontFamily: 'Nunito_500Medium',
+    textAlign: 'center',
+  },
+  headerCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: 'Nunito_700Bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  headerGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  editFieldCompact: {
+    marginBottom: 8,
+  },
+  editLabel: {
+    fontSize: 12,
+    fontFamily: 'Nunito_600SemiBold',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  editInput: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    fontFamily: 'Nunito_500Medium',
   },
 });

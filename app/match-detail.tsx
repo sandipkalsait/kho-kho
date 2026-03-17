@@ -1,3 +1,4 @@
+//      SANKET GHORPADE
 import React from 'react';
 import {
   StyleSheet,
@@ -60,13 +61,7 @@ export default function MatchDetailScreen() {
     );
   }
 
-  const handleEdit = () => {
-    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push({
-      pathname: '/edit-match',
-      params: { matchId: match.id },
-    });
-  };
+  const editText = match.status === 'draft' ? (t as any).completeMatch || 'Complete Match' : t.edit;
 
   const handleDelete = () => {
     Alert.alert(t.deleteMatch, t.deleteConfirm, [
@@ -81,6 +76,14 @@ export default function MatchDetailScreen() {
         },
       },
     ]);
+  };
+
+  const handleEdit = () => {
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({
+      pathname: '/edit-match',
+      params: { matchId: match.id },
+    });
   };
 
   return (
@@ -193,7 +196,7 @@ export default function MatchDetailScreen() {
           onPress={handleEdit}
         >
           <Feather name="edit-3" size={18} color={colors.primary} />
-          <Text style={[styles.editBtnText, { color: colors.primary }]}>{t.edit}</Text>
+          <Text style={[styles.editBtnText, { color: colors.primary }]}>{editText}</Text>
         </Pressable>
       </View>
     </LinearGradient>

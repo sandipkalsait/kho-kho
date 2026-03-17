@@ -58,7 +58,7 @@ export default function CaptureScreen() {
     setIsProcessing(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
     setIsProcessing(false);
-    router.push({ pathname: '/ocr-result', params: { imageUri: selectedImage } });
+    router.push({ pathname: '/scoresheet', params: { imageUri: selectedImage } });
     setSelectedImage(null);
   };
 
