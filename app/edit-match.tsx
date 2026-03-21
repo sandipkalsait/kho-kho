@@ -20,6 +20,7 @@ import { useMatches } from '@/context/MatchContext';
 import { generateId, generateFingerprint } from '@/lib/match-storage';
 import { MatchData, OCRResult, Player } from '@/lib/types';
 import { ThemeColors } from '@/constants/colors';
+import { submitReview, confirmSubmit } from '@/lib/pipeline-api';
 
 function EditableField({ label, value, onChangeText, confidence, isAutoFilled, multiline, colors, t }: {
   label: string;
@@ -86,10 +87,11 @@ function PlayerEditRow({ player, index, onUpdate, colors }: {
 export default function EditMatchScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
-  const { ocrData: ocrDataStr, imageUri, matchId } = useLocalSearchParams<{
+  const { ocrData: ocrDataStr, imageUri, matchId, requestId } = useLocalSearchParams<{
     ocrData?: string;
     imageUri?: string;
     matchId?: string;
+    requestId?: string;  // pipeline requestId from capture screen
   }>();
   const { addOrUpdateMatch, getMatchById } = useMatches();
   const { colors, t } = useAppSettings();
@@ -138,7 +140,7 @@ export default function EditMatchScreen() {
     }
   };
 
-  const handleSave = async (status: 'draft' | 'confirmed') => {
+  const handleSave = async (saveStatus: 'draft' | 'confirmed') => {
     if (!teamAName.trim() || !teamBName.trim()) {
       Alert.alert(t.missingInfo, t.enterBothTeams);
       return;
@@ -173,7 +175,7 @@ export default function EditMatchScreen() {
       updatedAt: new Date().toISOString(),
       isAutoFilled: autoFilledFields.length > 0,
       autoFilledFields,
-      status,
+      status: saveStatus,
       fingerprint,
     };
 
@@ -181,6 +183,30 @@ export default function EditMatchScreen() {
     if (result.duplicate) {
       Alert.alert(t.duplicateMatch, t.duplicateMatchDesc);
       return;
+    }
+
+    // ── Pipeline sync: send edits + confirm if this came from a pipeline upload ──
+    if (requestId) {
+      try {
+        await submitReview(requestId, {
+          reviewerId: 'app-user',
+          updatedData: {
+            teamA: teamAName,
+            teamB: teamBName,
+            date,
+            venue,
+            players: [...teamAPlayers, ...teamBPlayers],
+          },
+          comments: `Saved as ${saveStatus}`,
+        });
+
+        if (saveStatus === 'confirmed') {
+          await confirmSubmit(requestId, 'app-user');
+        }
+      } catch (err: any) {
+        // Non-fatal: local save already succeeded
+        console.warn('Pipeline sync warning:', err.message);
+      }
     }
 
     if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

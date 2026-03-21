@@ -15,13 +15,31 @@ import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useAppSettings } from '@/context/AppSettingsContext';
+import OpenCVValidator from '@/components/opencv';
+import { Asset } from 'expo-asset';
+import { uploadImage } from '@/lib/pipeline-api';
 
 export default function CaptureScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [templateUri, setTemplateUri] = useState<string | null>(null);
   const { colors, t } = useAppSettings();
+
+  React.useEffect(() => {
+    // Pre-load the template image URI
+    (async () => {
+      try {
+        const asset = Asset.fromModule(require('@/assets/images/template.png'));
+        await asset.downloadAsync();
+        setTemplateUri(asset.localUri || asset.uri);
+      } catch (e) {
+        console.error("Failed to load template image", e);
+      }
+    })();
+  }, []);
 
   const pickImage = async (source: 'camera' | 'gallery') => {
     let result: ImagePicker.ImagePickerResult;
@@ -54,12 +72,44 @@ export default function CaptureScreen() {
   };
 
   const processImage = async () => {
-    if (!selectedImage) return;
+    if (!selectedImage || !templateUri) {
+      if (!templateUri) Alert.alert("Error", "Template image not loaded yet.");
+      return;
+    }
+    // Start the OpenCV validation process instead of jumping straight to OCR
+    setIsValidating(true);
+  };
+
+  const handleValidationComplete = async (isValid: boolean, details: any) => {
+    setIsValidating(false);
+    if (!isValid) {
+      Alert.alert(
+        'Invalid Scoresheet',
+        details?.message || 'The image does not match a valid Kho-Kho scoresheet structure.',
+        [{ text: 'Try Again' }]
+      );
+      return;
+    }
+
+    // Upload to the pipeline and get a requestId
     setIsProcessing(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsProcessing(false);
-    router.push({ pathname: '/ocr-result', params: { imageUri: selectedImage } });
-    setSelectedImage(null);
+    try {
+      const { requestId } = await uploadImage(selectedImage!, { documentType: 'scoresheet' });
+      setSelectedImage(null);
+      router.push({ pathname: '/ocr-result', params: { imageUri: selectedImage, requestId } });
+    } catch (err: any) {
+      Alert.alert('Upload Failed', err.message || 'Could not connect to the server.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleValidationError = (errorMsg: string) => {
+    console.error('=== OPENCV VALIDATION ERROR ===');
+    console.error('Error:', errorMsg);
+    console.error('===============================');
+    setIsValidating(false);
+    Alert.alert("Validation Error", errorMsg);
   };
 
   return (
@@ -139,6 +189,17 @@ export default function CaptureScreen() {
               <Text style={[styles.optionTitle, { color: colors.text }]}>{t.fromGallery}</Text>
               <Text style={[styles.optionDesc, { color: colors.textSecondary }]}>{t.fromGalleryDesc}</Text>
             </Pressable>
+          </View>
+        )}
+
+        {isValidating && selectedImage && templateUri && (
+          <View style={StyleSheet.absoluteFillObject}>
+            <OpenCVValidator
+              imageUri={selectedImage}
+              referenceUri={templateUri}
+              onValidationComplete={handleValidationComplete}
+              onError={handleValidationError}
+            />
           </View>
         )}
 

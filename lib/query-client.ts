@@ -1,20 +1,14 @@
 import { fetch } from "expo/fetch";
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { Platform } from 'react-native';
 
 /**
- * Gets the base URL for the Express API server (e.g., "http://localhost:3000")
- * @returns {string} The API base URL
+ * Gets the base URL for the Django API server.
+ * Uses 10.0.2.2 for Android emulator, 127.0.0.1 for iOS/web.
  */
 export function getApiUrl(): string {
-  let host = process.env.EXPO_PUBLIC_DOMAIN;
-
-  if (!host) {
-    throw new Error("EXPO_PUBLIC_DOMAIN is not set");
-  }
-
-  let url = new URL(`https://${host}`);
-
-  return url.href;
+  if (Platform.OS === 'android') return 'http://10.0.2.2:8000/api/';
+  return 'http://127.0.0.1:8000/api/';
 }
 
 async function throwIfResNotOk(res: Response) {
