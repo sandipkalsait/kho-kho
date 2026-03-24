@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -12,22 +12,25 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Feather, Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppSettings } from '@/context/AppSettingsContext';
-import { useMatches } from '@/context/MatchContext';
 import { useOcrDraft } from '@/context/OcrDraftContext';
 import ScoresheetSheet from '@/components/ScoresheetSheet';
-import { buildMatchFromDraft, buildPipelineSheetPayload, getDraftValidationIssues } from '@/lib/dummy-ocr';
-import { confirmSubmit, submitReview } from '@/lib/pipeline-api';
+import { getDraftValidationIssues } from '@/lib/dummy-ocr';
 
-export default function OCRResultScreen() {
+export default function ScoresheetPreviewScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const { colors } = useAppSettings();
   const { imageUri, requestId } = useLocalSearchParams<{ imageUri?: string; requestId?: string }>();
-  const { draft, ensureDummyDraft, resetDraft } = useOcrDraft();
-  const { addOrUpdateMatch, refreshMatches } = useMatches();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const {
+    draft,
+    ensureDummyDraft,
+    updateMetaField,
+    updateOfficialField,
+    updateTeamField,
+    updatePlayerField,
+  } = useOcrDraft();
 
   useEffect(() => {
     ensureDummyDraft({ imageUri, requestId });
@@ -35,50 +38,22 @@ export default function OCRResultScreen() {
 
   const issues = useMemo(() => (draft ? getDraftValidationIssues(draft) : []), [draft]);
 
-  const handleSubmit = async () => {
+  const handleContinue = () => {
     if (!draft) {
-      Alert.alert('Missing draft', 'The dummy confirmation sheet is not ready yet.');
+      Alert.alert('Missing draft', 'The dummy OCR sheet is not ready yet.');
       return;
     }
 
-    setIsSubmitting(true);
-
-    try {
-      const finalPayload = buildPipelineSheetPayload(draft);
-
-      if (draft.requestId) {
-        await submitReview(draft.requestId, {
-          reviewerId: 'app-user',
-          updatedData: finalPayload,
-          comments: 'Full scoresheet payload synced from app confirmation screen.',
-        });
-
-        await confirmSubmit(draft.requestId, 'app-user', finalPayload, { skipValidation: true });
-        await refreshMatches();
-      } else {
-        const result = await addOrUpdateMatch(buildMatchFromDraft(draft));
-        if (!result.success) {
-          Alert.alert('Save failed', 'The sheet could not be submitted to the app store.');
-          return;
-        }
-      }
-
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-
-      resetDraft();
-      router.dismissAll();
-      router.replace('/(tabs)/matches');
-    } finally {
-      setIsSubmitting(false);
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+    router.push('/ocr-result');
   };
 
   if (!draft) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: '#ECE9E2' }]}>
-        <Text style={styles.loadingText}>Preparing final confirmation sheet...</Text>
+        <Text style={styles.loadingText}>Preparing dummy correction sheet...</Text>
       </View>
     );
   }
@@ -89,57 +64,47 @@ export default function OCRResultScreen() {
         <Pressable onPress={() => router.back()} style={styles.topBarButton}>
           <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
         </Pressable>
-        <Text style={styles.topBarTitle}>Final Confirmation</Text>
+        <Text style={styles.topBarTitle}>Correction Sheet</Text>
         <View style={styles.topBarPill}>
-          <Text style={styles.topBarPillText}>View Only</Text>
+          <Text style={styles.topBarPillText}>Dummy Record</Text>
         </View>
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           style={styles.flex}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 132 }]}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 120 }]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>Final review before submit</Text>
+            <Text style={styles.infoTitle}>Manual correction step</Text>
             <Text style={styles.infoText}>
-              This page matches the correction sheet exactly, but it is locked for confirmation. Go back if any field still needs manual correction.
+              This page uses dummy OCR data. Yellow cells are intentionally blank so the operator can enter the missing values before confirmation.
+            </Text>
+            <Text style={styles.infoMeta}>
+              Current pending fields: {issues.map((issue) => issue.label).slice(0, 4).join(', ')}
+              {issues.length > 4 ? ` +${issues.length - 4} more` : ''}
             </Text>
           </View>
 
-          {issues.length > 0 && (
-            <View style={styles.warningCard}>
-              <View style={styles.warningHeader}>
-                <Feather name="alert-triangle" size={18} color="#8A5C00" />
-                <Text style={styles.warningTitle}>Temporary mode: submit is allowed without validation.</Text>
-              </View>
-              <Text style={styles.warningText}>
-                Missing fields right now: {issues.map((issue) => issue.label).join(', ')}
-              </Text>
-            </View>
-          )}
-
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sheetScrollContent}>
-            <ScoresheetSheet draft={draft} editable={false} colors={colors} />
+            <ScoresheetSheet
+              draft={draft}
+              editable
+              onMetaFieldChange={updateMetaField}
+              onOfficialFieldChange={updateOfficialField}
+              onTeamFieldChange={updateTeamField}
+              onPlayerFieldChange={updatePlayerField}
+              colors={colors}
+            />
           </ScrollView>
         </ScrollView>
       </KeyboardAvoidingView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
-        <Pressable style={styles.secondaryButton} onPress={() => router.back()}>
-          <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Back To Correction</Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.primaryButton,
-            { backgroundColor: colors.primary },
-            isSubmitting && { opacity: 0.7 },
-          ]}
-          onPress={handleSubmit}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.primaryButtonText}>{isSubmitting ? 'Submitting...' : 'Submit Final Sheet'}</Text>
+        <Pressable style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={handleContinue}>
+          <Text style={styles.primaryButtonText}>Preview Final Confirmation</Text>
         </Pressable>
       </View>
     </View>
@@ -210,29 +175,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito_500Medium',
     color: '#434343',
   },
-  warningCard: {
-    backgroundColor: '#FFF7E2',
-    borderWidth: 1,
-    borderColor: '#E3C879',
-    padding: 14,
-    gap: 6,
-  },
-  warningHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  warningTitle: {
-    fontSize: 14,
-    fontFamily: 'Nunito_700Bold',
-    color: '#6D4B00',
-    flex: 1,
-  },
-  warningText: {
+  infoMeta: {
     fontSize: 12,
-    lineHeight: 18,
-    fontFamily: 'Nunito_500Medium',
-    color: '#6D4B00',
+    fontFamily: 'Nunito_600SemiBold',
+    color: '#7A5F17',
   },
   sheetScrollContent: {
     flexGrow: 1,
@@ -250,25 +196,8 @@ const styles = StyleSheet.create({
     borderTopColor: '#D8D2C8',
     paddingHorizontal: 16,
     paddingTop: 12,
-    flexDirection: 'row',
-    gap: 12,
-  },
-  secondaryButton: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: '#B9B1A5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  secondaryButtonText: {
-    fontSize: 15,
-    fontFamily: 'Nunito_700Bold',
   },
   primaryButton: {
-    flex: 1.3,
     minHeight: 52,
     borderRadius: 8,
     alignItems: 'center',

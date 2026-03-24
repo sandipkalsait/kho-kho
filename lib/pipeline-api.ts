@@ -1,18 +1,16 @@
 /**
- * kho-kho Pipeline API Service
- * 
- * Bridges the React Native app to the 5-step Django OCR pipeline:
- *  - POST /api/upload/              → uploadImage()
- *  - GET  /api/review/:id/          → getReview()
- *  - PUT  /api/review/:id/update/   → submitReview()
- *  - POST /api/submit/:id/          → confirmSubmit()
- *  - GET  /api/audit/:id/           → getAuditLog()
+ * kho-kho Pipeline API Service (Validation Optional Mode)
+ *
+ * Changes:
+ * - Removed mandatory validation dependency
+ * - skipValidation = true by default across pipeline
+ * - Review + Submit both support skipValidation
  */
 
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 
-/** Base URL: 10.0.2.2 for Android emulator, 127.0.0.1 for iOS/web */
+/** Base URL */
 export const API_BASE =
   Platform.OS === 'android'
     ? 'http://10.0.2.2:8000/api/'
@@ -31,7 +29,14 @@ export interface ReviewResponse {
   status: 'PROCESSING' | 'EXTRACTED' | 'REVIEWED' | 'COMPLETED' | 'FAILED';
   extractedData: Record<string, any>;
   confidenceScore: number;
+
+  /** ⚠️ Still returned, but no longer blocking */
   missingFields: string[];
+
+  finalData?: Record<string, any>;
+  currentData?: Record<string, any>;
+  rawOcrData?: Record<string, any>;
+  sourceImageUrl?: string;
 }
 
 export interface ReviewUpdatePayload {
@@ -45,75 +50,71 @@ export interface SubmitResponse {
   status: string;
   finalPayload: Record<string, any>;
   message: string;
+  matchId?: string | number;
+  sourceImageUrl?: string;
 }
 
 // ─── Step 1: Upload image ─────────────────────────────────────────────────────
 
-/**
- * Primary upload function.
- * Reads the local file:// URI as base64 via expo-file-system (works on
- * iOS + Android with Expo's fetch polyfill) and sends it as a JSON body.
- * Falls back to multipart FormData on web.
- */
 export async function uploadImage(
   imageUri: string,
   metadata?: { userId?: string; documentType?: string }
 ): Promise<UploadResponse> {
-  // Web: use multipart FormData (fetch can read blob/file URLs on web)
+
   if (Platform.OS === 'web') {
-    console.log(`[Web] Uploading ${imageUri}...`);
     const formData = new FormData();
-    
+
     try {
-      // On web, we must convert the URI/Blob URL to an actual Blob before appending
       const response = await fetch(imageUri);
       const blob = await response.blob();
-      
+
       const filename = imageUri.split('/').pop()?.split('?')[0] ?? 'upload.jpg';
       formData.append('image', blob, filename);
-      
-      if (metadata?.userId)       formData.append('userId', metadata.userId);
+
+      if (metadata?.userId) formData.append('userId', metadata.userId);
       if (metadata?.documentType) formData.append('documentType', metadata.documentType);
-      
-      const res = await fetch(`${API_BASE}upload/`, { method: 'POST', body: formData });
+
+      const res = await fetch(`${API_BASE}upload/`, {
+        method: 'POST',
+        body: formData
+      });
+
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? `Upload failed: ${res.status}`);
       return json as UploadResponse;
+
     } catch (err: any) {
-      console.error("[Web] Upload Error:", err);
       throw new Error(`Web upload failed: ${err.message}`);
     }
   }
 
-  // iOS / Android: read the local file as base64 first, then POST as JSON.
-  // This is necessary because expo/fetch (the Expo fetch polyfill) cannot
-  // read a file:// URI embedded in a FormData object.
+  // Mobile (Base64)
   let base64: string;
   try {
-    console.log(`[Base64] Reading ${imageUri}...`);
     base64 = await FileSystem.readAsStringAsync(imageUri, {
       encoding: 'base64' as any,
     });
-    console.log(`[Base64] Read successful. Length: ${base64.length}`);
-    if (!base64) throw new Error("File read returned empty string.");
+
+    if (!base64) throw new Error("Empty file");
+
   } catch (err: any) {
-    throw new Error(`Could not read image file: ${err.message}`);
+    throw new Error(`File read failed: ${err.message}`);
   }
 
   return uploadImageBase64(base64, metadata);
 }
 
-/** Upload using a base64 string (primary path for iOS/Android). */
+// ─── Base64 Upload ────────────────────────────────────────────────────────────
+
 export async function uploadImageBase64(
   base64: string,
   metadata?: { userId?: string; documentType?: string }
 ): Promise<UploadResponse> {
-  const url = `${API_BASE}upload/`;
-  console.log(`[API] POST to ${url}`);
-  
-  const res = await fetch(url, {
+
+  const res = await fetch(`${API_BASE}upload/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+
     body: JSON.stringify({
       image_base64: base64,
       userId: metadata?.userId,
@@ -122,10 +123,8 @@ export async function uploadImageBase64(
   });
 
   const json = await res.json();
-  if (!res.ok) {
-    console.error(`[API] Upload failed (${res.status}):`, json);
-    throw new Error(json.error ?? `Upload failed: ${res.status}`);
-  }
+  if (!res.ok) throw new Error(json.error ?? `Upload failed: ${res.status}`);
+
   return json as UploadResponse;
 }
 
@@ -134,63 +133,95 @@ export async function uploadImageBase64(
 export async function getReview(requestId: string): Promise<ReviewResponse> {
   const res = await fetch(`${API_BASE}review/${requestId}/`);
   const json = await res.json();
+
   if (!res.ok) throw new Error(json.error ?? `Review fetch failed: ${res.status}`);
+
   return json as ReviewResponse;
 }
 
-/** Poll until status reaches EXTRACTED / FAILED (max 30 s) */
+// ─── Poll OCR ────────────────────────────────────────────────────────────────
+
 export async function pollUntilExtracted(
   requestId: string,
   intervalMs = 1500,
   timeoutMs = 30000
 ): Promise<ReviewResponse> {
+
   const deadline = Date.now() + timeoutMs;
+
   while (Date.now() < deadline) {
     const data = await getReview(requestId);
+
     if (data.status !== 'PROCESSING') return data;
+
     await new Promise(r => setTimeout(r, intervalMs));
   }
-  throw new Error('OCR processing timed out after 30 s.');
+
+  throw new Error('OCR timeout (30s)');
 }
 
-// ─── Step 4: Submit human review edits ────────────────────────────────────────
+// ─── Step 4: Submit Review (NO mandatory validation) ──────────────────────────
 
 export async function submitReview(
   requestId: string,
-  payload: ReviewUpdatePayload
+  payload: ReviewUpdatePayload,
+  options?: { skipValidation?: boolean }
 ): Promise<{ status: string; changedFields: Record<string, any> }> {
+
   const res = await fetch(`${API_BASE}review/${requestId}/update/`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+
+    body: JSON.stringify({
+      ...payload,
+
+      /** ✅ default TRUE */
+      skipValidation: options?.skipValidation ?? true,
+    }),
   });
+
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? `Review update failed: ${res.status}`);
+  if (!res.ok) throw new Error(json.error ?? `Review update failed`);
+
   return json;
 }
 
-// ─── Step 5: Final confirmation ───────────────────────────────────────────────
+// ─── Step 5: Final Submit (NO mandatory validation) ───────────────────────────
 
 export async function confirmSubmit(
   requestId: string,
-  reviewerId?: string
+  reviewerId?: string,
+  finalPayload?: Record<string, any>,
+  options?: { skipValidation?: boolean }
 ): Promise<SubmitResponse> {
+
   const res = await fetch(`${API_BASE}submit/${requestId}/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reviewerId: reviewerId ?? 'app-user' }),
+
+    body: JSON.stringify({
+      reviewerId: reviewerId ?? 'app-user',
+      finalPayload,
+
+      /** ✅ default TRUE */
+      skipValidation: options?.skipValidation ?? true,
+    }),
   });
+
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? `Submission failed (${res.status})`);
+  if (!res.ok) throw new Error(json.error ?? `Submission failed`);
+
   return json as SubmitResponse;
 }
 
-// ─── Audit log ────────────────────────────────────────────────────────────────
+// ─── Audit Log ───────────────────────────────────────────────────────────────
 
 export async function getAuditLog(requestId: string) {
   const res = await fetch(`${API_BASE}audit/${requestId}/`);
   const json = await res.json();
+
   if (!res.ok) throw new Error(json.error ?? 'Audit fetch failed');
+
   return json.auditLogs as Array<{
     id: string;
     user_id: string;

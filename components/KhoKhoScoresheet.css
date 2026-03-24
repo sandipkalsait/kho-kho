@@ -1,0 +1,274 @@
+.scoresheet-page-container {
+  width: 100%;
+  padding: 16px;
+  background: #f3f3f3;
+}
+
+.scoresheet-team-section {
+  margin-bottom: 20px;
+}
+
+.scoresheet-team-header {
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #1f2937;
+}
+
+.staff-info {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.staff-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.staff-item label {
+  font-weight: 600;
+}
+
+.staff-item input {
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.scoresheet-grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.tables-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .scoresheet-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.scoresheet-table-wrapper {
+  background: #ffffff;
+  border: 1px solid #000;
+  padding: 8px;
+}
+
+.chase-groups-wrapper {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  margin-top: 8px;
+}
+
+.batches-group-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  padding: 8px;
+  background: #fafafa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.batches-group-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2937;
+  text-align: center;
+  padding: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  border: 1px solid #999;
+}
+
+.batches-group-container {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.batch-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  background: transparent;
+  flex-shrink: 0;
+  border-right: 3px solid #000;
+}
+
+.batch-item[data-batch-index="3"] {
+  border-right: none;
+}
+
+.batch-label {
+  font-weight: 700;
+  font-size: 13px;
+  color: #1f2937;
+  text-align: center;
+  padding: 4px;
+  background: #e5e7eb;
+  border-radius: 3px;
+}
+
+.batch-item-label {
+  background: #e5e7eb !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  border-right: 1px solid #999 !important;
+  border-bottom: 2px solid #000 !important;
+  padding: 3px 2px !important;
+  color: #000 !important;
+  border-left: 1px solid #999 !important;
+  height: 24px !important;
+  min-height: 24px !important;
+}
+
+.batch-item-label:first-child {
+  border-right: 1px solid #999 !important;
+  border-left: 1px solid #000 !important;
+}
+
+.batch-item-label:last-child {
+  border-right: 1px solid #000 !important;
+}
+
+.scoresheet-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.excel-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: #ffffff;
+  border: 1px solid #000;
+}
+
+.excel-table th,
+.excel-table td {
+  border: 1px solid #000;
+  padding: 2px 4px;
+  height: 28px;
+  min-height: 28px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.excel-table th {
+  background: #f7f7f7;
+  font-weight: 700;
+}
+
+.batch-item-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: #ffffff;
+  border: 1px solid #000;
+  margin: 0;
+  padding: 0;
+  border-right: none;
+  font-size: 11px;
+}
+
+.batch-item-table th,
+.batch-item-table td {
+  border: 1px solid #000;
+  padding: 2px 2px;
+  height: 24px;
+  min-height: 24px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.batch-item-table td {
+  height: 28px;
+  border-right: 1px solid #999 !important;
+  border-left: 1px solid #999 !important;
+}
+
+.batch-item-table tbody tr td:first-child {
+  border-left: 1px solid #000 !important;
+}
+
+.batch-item-table tbody tr td:last-child {
+  border-right: 1px solid #000 !important;
+}
+
+.batch-item-col-num {
+  background: #ffffff !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  border-right: 1px solid #999 !important;
+  border-left: 1px solid #999 !important;
+  border-bottom: 1px solid #000 !important;
+  padding: 2px 2px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+}
+
+.batch-item-col-num:first-child {
+  border-left: 1px solid #000 !important;
+}
+
+.batch-item-col-num:last-child {
+  border-right: 1px solid #000 !important;
+}
+
+.substitute-players {
+  margin-top: 16px;
+}
+
+.substitute-table input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0 4px;
+}
+
+.add-button {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.defense-table th:nth-child(3),
+.defense-table td:nth-child(3),
+.defense-table th:nth-child(5),
+.defense-table td:nth-child(5),
+.defense-table th:nth-child(9),
+.defense-table td:nth-child(9) {
+  border-right: 2px solid #000;
+}
+
+.team-divider {
+  border-top: 2px solid #000;
+  margin: 16px 0;
+}

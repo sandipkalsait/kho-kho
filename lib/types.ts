@@ -9,12 +9,27 @@ export interface TeamData {
   nameConfidence: number;
   players: Player[];
   totalScore: number;
+  coach?: string;
+  manager?: string;
+  supportStaff?: string;
 }
 
 export interface MatchData {
   id: string;
+  requestId?: string;
+  tournament?: string;
   date: string;
+  time?: string;
   venue: string;
+  courtNo?: string;
+  matchNo?: string;
+  tossWinner?: string;
+  choice?: string;
+  result?: string;
+  remarks?: string;
+  officials?: Record<string, any>;
+  sheetPayload?: Record<string, any>;
+  sourceImageUrl?: string;
   venueConfidence: number;
   dateConfidence: number;
   teamA: TeamData;

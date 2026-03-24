@@ -8,6 +8,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { MatchProvider } from "@/context/MatchContext";
 import { AppSettingsProvider } from "@/context/AppSettingsContext";
+import { OcrDraftProvider } from "@/context/OcrDraftContext";
 import { useFonts, Nunito_400Regular, Nunito_500Medium, Nunito_600SemiBold, Nunito_700Bold } from "@expo-google-fonts/nunito";
 
 SplashScreen.preventAutoHideAsync();
@@ -16,6 +17,13 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="scoresheet-preview"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
       <Stack.Screen
         name="ocr-result"
         options={{
@@ -71,7 +79,9 @@ export default function RootLayout() {
           <KeyboardProvider>
             <AppSettingsProvider>
               <MatchProvider>
-                <RootLayoutNav />
+                <OcrDraftProvider>
+                  <RootLayoutNav />
+                </OcrDraftProvider>
               </MatchProvider>
             </AppSettingsProvider>
           </KeyboardProvider>

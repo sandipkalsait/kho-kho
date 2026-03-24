@@ -95,10 +95,18 @@ export default function CaptureScreen() {
     setIsProcessing(true);
     try {
       const { requestId } = await uploadImage(selectedImage!, { documentType: 'scoresheet' });
+      const currentImage = selectedImage;
       setSelectedImage(null);
-      router.push({ pathname: '/ocr-result', params: { imageUri: selectedImage, requestId } });
+      router.push({ pathname: '/scoresheet-preview', params: { imageUri: currentImage, requestId } });
     } catch (err: any) {
-      Alert.alert('Upload Failed', err.message || 'Could not connect to the server.');
+      const currentImage = selectedImage;
+      console.warn('[capture] Upload failed, continuing with dummy sheet:', err);
+      Alert.alert(
+        'Using dummy record',
+        'OCR upload failed. The app will continue with a dummy scoresheet so you can review, correct, and submit manually.',
+      );
+      setSelectedImage(null);
+      router.push({ pathname: '/scoresheet-preview', params: { imageUri: currentImage } });
     } finally {
       setIsProcessing(false);
     }

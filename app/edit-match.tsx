@@ -1,3 +1,4 @@
+//      SANKET GHORPADE
 import React, { useState, useMemo } from 'react';
 import {
   StyleSheet,
@@ -20,9 +21,8 @@ import { useMatches } from '@/context/MatchContext';
 import { generateId, generateFingerprint } from '@/lib/match-storage';
 import { MatchData, OCRResult, Player } from '@/lib/types';
 import { ThemeColors } from '@/constants/colors';
-import { submitReview, confirmSubmit } from '@/lib/pipeline-api';
 
-function EditableField({ label, value, onChangeText, confidence, isAutoFilled, multiline, colors, t }: {
+function EditableField({ label, value, onChangeText, confidence, isAutoFilled, multiline, colors, t, error }: {
   label: string;
   value: string;
   onChangeText: (text: string) => void;
@@ -31,8 +31,10 @@ function EditableField({ label, value, onChangeText, confidence, isAutoFilled, m
   multiline?: boolean;
   colors: ThemeColors;
   t: any;
+  error?: string;
 }) {
   const isLowConf = confidence !== undefined && confidence < 0.6;
+  const hasError = !!error;
   return (
     <View style={[styles.editField, isLowConf && { backgroundColor: colors.confidenceLow + '08', borderRadius: 12, padding: 10, marginHorizontal: -10 }]}>
       <View style={styles.editFieldHeader}>
@@ -45,12 +47,15 @@ function EditableField({ label, value, onChangeText, confidence, isAutoFilled, m
         )}
       </View>
       <TextInput
-        style={[styles.editFieldInput, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }, multiline && { minHeight: 48, textAlignVertical: 'top' as const }]}
+        style={[styles.editFieldInput, { backgroundColor: colors.inputBg, borderColor: hasError ? colors.negative : colors.border, color: colors.text }, multiline && { minHeight: 48, textAlignVertical: 'top' }]}
         value={value}
         onChangeText={onChangeText}
         placeholderTextColor={colors.textTertiary}
         multiline={multiline}
       />
+      {hasError && (
+        <Text style={[styles.errorText, { color: colors.negative }]}>{error}</Text>
+      )}
       {isLowConf && (
         <Text style={[styles.lowConfText, { color: colors.confidenceLow }]}>{t.lowConfidence}</Text>
       )}
@@ -58,12 +63,14 @@ function EditableField({ label, value, onChangeText, confidence, isAutoFilled, m
   );
 }
 
-function PlayerEditRow({ player, index, onUpdate, colors }: {
+function PlayerEditRow(props: {
   player: Player;
   index: number;
   onUpdate: (name: string, score: string) => void;
   colors: ThemeColors;
+  key?: React.Key;
 }) {
+  const { player, index, onUpdate, colors } = props;
   return (
     <View style={styles.playerEditRow}>
       <Text style={[styles.playerEditIndex, { color: colors.textTertiary }]}>{index + 1}</Text>
@@ -87,11 +94,10 @@ function PlayerEditRow({ player, index, onUpdate, colors }: {
 export default function EditMatchScreen() {
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
-  const { ocrData: ocrDataStr, imageUri, matchId, requestId } = useLocalSearchParams<{
+  const { ocrData: ocrDataStr, imageUri, matchId } = useLocalSearchParams<{
     ocrData?: string;
     imageUri?: string;
     matchId?: string;
-    requestId?: string;  // pipeline requestId from capture screen
   }>();
   const { addOrUpdateMatch, getMatchById } = useMatches();
   const { colors, t } = useAppSettings();
@@ -109,11 +115,16 @@ export default function EditMatchScreen() {
   const [teamBPlayers, setTeamBPlayers] = useState<Player[]>(
     existingMatch?.teamB.players || ocrData?.teamBPlayers || []
   );
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   const autoFilledFields = ocrData?.autoFilledFields || existingMatch?.autoFilledFields || [];
 
   const teamAScore = useMemo(() => teamAPlayers.reduce((s, p) => s + p.score, 0), [teamAPlayers]);
   const teamBScore = useMemo(() => teamBPlayers.reduce((s, p) => s + p.score, 0), [teamBPlayers]);
+
+  const isValid = useMemo(() => {
+    return teamAName.trim() && teamBName.trim() && date.trim() && teamAPlayers.some(p => p.name.trim()) && teamBPlayers.some(p => p.name.trim());
+  }, [teamAName, teamBName, date, teamAPlayers, teamBPlayers]);
 
   const updateTeamAPlayer = (index: number, name: string, score: string) => {
     setTeamAPlayers(prev => {
@@ -140,13 +151,19 @@ export default function EditMatchScreen() {
     }
   };
 
-  const handleSave = async (saveStatus: 'draft' | 'confirmed') => {
-    if (!teamAName.trim() || !teamBName.trim()) {
-      Alert.alert(t.missingInfo, t.enterBothTeams);
-      return;
-    }
-    if (!date.trim()) {
-      Alert.alert(t.missingInfo, t.enterDate);
+  const validateFields = () => {
+    const newErrors: {[key: string]: string} = {};
+    if (!teamAName.trim()) newErrors.teamAName = (t as any).teamNameRequired || 'Team name is required';
+    if (!teamBName.trim()) newErrors.teamBName = (t as any).teamNameRequired || 'Team name is required';
+    if (!date.trim()) newErrors.date = (t as any).dateRequired || 'Date is required';
+    if (!teamAPlayers.some(p => p.name.trim())) newErrors.teamAPlayers = (t as any).atLeastOnePlayerRequired || 'At least one player is required';
+    if (!teamBPlayers.some(p => p.name.trim())) newErrors.teamBPlayers = (t as any).atLeastOnePlayerRequired || 'At least one player is required';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSave = async (status: 'draft' | 'confirmed') => {
+    if (status === 'confirmed' && !validateFields()) {
       return;
     }
 
@@ -175,7 +192,7 @@ export default function EditMatchScreen() {
       updatedAt: new Date().toISOString(),
       isAutoFilled: autoFilledFields.length > 0,
       autoFilledFields,
-      status: saveStatus,
+      status,
       fingerprint,
     };
 
@@ -183,30 +200,6 @@ export default function EditMatchScreen() {
     if (result.duplicate) {
       Alert.alert(t.duplicateMatch, t.duplicateMatchDesc);
       return;
-    }
-
-    // ── Pipeline sync: send edits + confirm if this came from a pipeline upload ──
-    if (requestId) {
-      try {
-        await submitReview(requestId, {
-          reviewerId: 'app-user',
-          updatedData: {
-            teamA: teamAName,
-            teamB: teamBName,
-            date,
-            venue,
-            players: [...teamAPlayers, ...teamBPlayers],
-          },
-          comments: `Saved as ${saveStatus}`,
-        });
-
-        if (saveStatus === 'confirmed') {
-          await confirmSubmit(requestId, 'app-user');
-        }
-      } catch (err: any) {
-        // Non-fatal: local save already succeeded
-        console.warn('Pipeline sync warning:', err.message);
-      }
     }
 
     if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -239,7 +232,7 @@ export default function EditMatchScreen() {
         >
           <View style={[styles.sectionCard, { backgroundColor: colors.card, shadowColor: colors.cardShadow }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>{t.matchInfo}</Text>
-            <EditableField label={t.date} value={date} onChangeText={setDate} confidence={ocrData?.dateConfidence} colors={colors} t={t} />
+            <EditableField label={t.date} value={date} onChangeText={(text) => { setDate(text); if (errors.date) setErrors(prev => ({...prev, date: ''})); }} confidence={ocrData?.dateConfidence} colors={colors} t={t} error={errors.date} />
             <EditableField label={t.venue} value={venue} onChangeText={setVenue} confidence={ocrData?.venueConfidence} isAutoFilled={autoFilledFields.includes('venue')} colors={colors} t={t} />
           </View>
 
@@ -250,7 +243,7 @@ export default function EditMatchScreen() {
                 <Text style={[styles.teamScorePillText, { color: colors.primary }]}>{teamAScore} {t.pts}</Text>
               </View>
             </View>
-            <EditableField label={t.teamName} value={teamAName} onChangeText={setTeamAName} confidence={ocrData?.teamANameConfidence} colors={colors} t={t} />
+            <EditableField label={t.teamName} value={teamAName} onChangeText={(text) => { setTeamAName(text); if (errors.teamAName) setErrors(prev => ({...prev, teamAName: ''})); }} confidence={ocrData?.teamANameConfidence} colors={colors} t={t} error={errors.teamAName} />
             <Text style={[styles.playersLabel, { color: colors.textSecondary }]}>{t.players}</Text>
             {teamAPlayers.map((player, idx) => (
               <PlayerEditRow key={idx} player={player} index={idx} onUpdate={(name, score) => updateTeamAPlayer(idx, name, score)} colors={colors} />
@@ -259,6 +252,7 @@ export default function EditMatchScreen() {
               <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
               <Text style={[styles.addPlayerText, { color: colors.primary }]}>{t.addPlayer}</Text>
             </Pressable>
+            {errors.teamAPlayers && <Text style={[styles.errorText, { color: colors.negative }]}>{errors.teamAPlayers}</Text>}
           </View>
 
           <View style={[styles.sectionCard, { backgroundColor: colors.card, shadowColor: colors.cardShadow }]}>
@@ -268,7 +262,7 @@ export default function EditMatchScreen() {
                 <Text style={[styles.teamScorePillText, { color: colors.primary }]}>{teamBScore} {t.pts}</Text>
               </View>
             </View>
-            <EditableField label={t.teamName} value={teamBName} onChangeText={setTeamBName} confidence={ocrData?.teamBNameConfidence} colors={colors} t={t} />
+            <EditableField label={t.teamName} value={teamBName} onChangeText={(text) => { setTeamBName(text); if (errors.teamBName) setErrors(prev => ({...prev, teamBName: ''})); }} confidence={ocrData?.teamBNameConfidence} colors={colors} t={t} error={errors.teamBName} />
             <Text style={[styles.playersLabel, { color: colors.textSecondary }]}>{t.players}</Text>
             {teamBPlayers.map((player, idx) => (
               <PlayerEditRow key={idx} player={player} index={idx} onUpdate={(name, score) => updateTeamBPlayer(idx, name, score)} colors={colors} />
@@ -277,6 +271,7 @@ export default function EditMatchScreen() {
               <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
               <Text style={[styles.addPlayerText, { color: colors.primary }]}>{t.addPlayer}</Text>
             </Pressable>
+            {errors.teamBPlayers && <Text style={[styles.errorText, { color: colors.negative }]}>{errors.teamBPlayers}</Text>}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -285,7 +280,7 @@ export default function EditMatchScreen() {
         <Pressable style={({ pressed }) => [styles.draftButton, { borderColor: colors.primary }, pressed && { opacity: 0.9 }]} onPress={() => handleSave('draft')}>
           <Text style={[styles.draftButtonText, { color: colors.primary }]}>{t.saveDraft}</Text>
         </Pressable>
-        <Pressable style={({ pressed }) => [styles.confirmButton, pressed && { opacity: 0.9 }]} onPress={() => handleSave('confirmed')}>
+        <Pressable style={({ pressed }) => [styles.confirmButton, !isValid && { opacity: 0.5 }, pressed && isValid && { opacity: 0.9 }]} onPress={() => handleSave('confirmed')} disabled={!isValid}>
           <LinearGradient
             colors={[colors.primary, colors.primaryDark]}
             start={{ x: 0, y: 0 }}
@@ -387,6 +382,11 @@ const styles = StyleSheet.create({
   },
   lowConfText: {
     fontSize: 11,
+    fontFamily: 'Nunito_500Medium',
+    marginTop: 4,
+  },
+  errorText: {
+    fontSize: 12,
     fontFamily: 'Nunito_500Medium',
     marginTop: 4,
   },

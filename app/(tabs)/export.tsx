@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
 import { useAppSettings } from '@/context/AppSettingsContext';
@@ -84,9 +85,9 @@ export default function ExportScreen() {
         a.click();
         URL.revokeObjectURL(url);
       } else {
-        const fileUri = FileSystem.documentDirectory + fileName;
-        await FileSystem.writeAsStringAsync(fileUri, csv, {
-          encoding: FileSystem.EncodingType.UTF8,
+        const fileUri = (FileSystemLegacy.documentDirectory || FileSystem.Paths.cache.uri) + fileName;
+        await FileSystemLegacy.writeAsStringAsync(fileUri, csv, {
+          encoding: FileSystemLegacy.EncodingType.UTF8,
         });
         const isAvailable = await Sharing.isAvailableAsync();
         if (isAvailable) {
